@@ -15,7 +15,7 @@ This NodeJS script automatically sends new iserv exercises to a discord webhook.
 This will execute the script every 5 minutes from 6 am to 5 pm from Monday until Friday.
 
 # Used NPM packages
-I used two NPM packages to code this script.
+I used two NPM packages in this script.
 * [Discord.JS](https://github.com/discordjs/discord.js)
 * [Cheerio](https://github.com/cheeriojs/cheerio)
 
