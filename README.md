@@ -9,7 +9,7 @@ This NodeJS script automatically sends new iserv exercises to a discord webhook.
     <img src="https://media.giphy.com/media/N59N9NJI6SVhegfWph/giphy.gif" width="450"></img>
 
 
-  5. Start the **main.js** with *node main.js* to start the setup. You will need the host and port of your IServ-Web-Server, the credentials to your IServ-Account and the link to your discord webhook.
+  5. Start the **main.js** with `node main.js` to start the setup. You will need the host and port of your IServ-Web-Server, the credentials to your IServ-Account and the link to your discord webhook.
   6. Create a cron job (or something similar) to run the **main.js** script repeatedly.
 
 # Disclaimer
