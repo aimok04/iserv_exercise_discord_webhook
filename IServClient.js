@@ -1,0 +1,220 @@
+const querystring = require('querystring');
+const https = require("https");
+const fs = require("fs");
+const cheerio = require('cheerio'); 
+
+const tag = "[ ISERV-CLIENT ] ";
+
+class IServClass {
+    constructor(host, port, user, pass, cookie, cookieUpdate) {
+        this.host = host;
+        this.port = port;
+        this.user = user;
+        this.pass = pass;
+        this.cookieUpdate = cookieUpdate;
+        if(cookie != null) this.tempCookie = cookie;
+        
+        if(fs.existsSync("_iservTmp")) fs.rmdirSync("_iservTmp", { recursive:true });
+    }
+    
+    downloadExerciseFiles(detailed_exercise_object){
+        var cl = this;
+        return new Promise((resolve,reject)=>{
+            var index = 0;
+            
+            var nextFile = function(savepath){
+                if(savepath != null) detailed_exercise_object.files[index-1].local_path = savepath;
+                
+                var file = detailed_exercise_object.files[index];
+                if(file == null){
+                    resolve(detailed_exercise_object);
+                    return;
+                }
+                
+               cl._download(file.url, cl._tmpfile(Date.now()+"_tmp"+file.name)).then(nextFile, nextFile);
+               index++;
+            };
+            
+            nextFile();
+        });
+    }
+    
+    getExerciseDetailed(id){
+        return new Promise((resolve,reject)=>{
+            this.simpleEndpointRequest("/iserv/exercise/show/"+id).then((data)=>{
+                var $ = cheerio.load(data);
+                var obj = {};
+                
+                obj.creator = $("table:first").find("tr:nth-child(1)").find("td").text();
+                obj.start = $("table:first").find("tr:nth-child(2)").find("td").text();
+                obj.end = $("table:first").find("tr:nth-child(3)").find("td").text();
+                
+                obj.description = $(".panel:first").find("div:nth-of-type(2)").find(".text-break-word:nth-of-type(2)").text();
+                obj.files = [];
+                
+                var index = 0;
+                $("form[name=iserv_exercise_attachment]").find("td:nth-child(even)").find("a").each(function(){
+                    obj.files.push({
+                       name: $(this).text(),
+                       url: $(this).attr("href")
+                    });
+                });
+                
+                resolve(obj);
+            }, ()=>{reject();});
+        });
+    }
+    
+    getExercises(){
+        return new Promise((resolve,reject)=>{
+            this.simpleEndpointRequest("/iserv/exercise").then((data)=>{
+                var returnment = [];
+                var $ = cheerio.load(data);
+                
+                $("#crud-table").find("tbody").find("tr").each(function(){
+                    var index = 0;
+                    var obj = {};
+                    
+                    $(this).find("td").each(function(){
+                        if(index==0){
+                            obj.id = $(this).find("a").attr("href").split("/").pop();
+                            obj.url = $(this).find("a").attr("href");
+                            obj.name = $(this).text();
+                        }else if(index == 1){
+                            obj.start = $(this).text();
+                        }else if(index == 2){
+                            obj.end = $(this).text();
+                        }else if(index == 3){
+                            obj.tags = $(this).text();
+                        }
+                        index++;
+                    });
+                    
+                    returnment.push(obj);
+                });
+                
+                resolve(returnment);
+            }, ()=>{reject();});
+        });
+    }
+    
+    simpleEndpointRequest(endpoint){
+        return new Promise((resolve,reject)=>{
+            this.getCookies().then((cookies)=>{
+                const options = {
+                    port: this.port,
+                    hostname: this.host,
+                    path: endpoint,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/5331 (KHTML, like Gecko) Chrome/38.0.858.0 Mobile Safari/5331',
+                        'Accept': '/',
+                        'Cookie': cookies,
+                        'Connection': 'keep-alive'
+                    }
+                };
+                
+                var req = https.request(options, (res)=>{
+                    if("location" in res.headers){
+                        this.tempCookie = null;
+                        this.simpleEndpointRequest(endpoint).then((data)=>{ resolve(data); }, ()=>{reject();});
+                        return;
+                    }
+                    
+                    var data ='';
+                    res.on('data', (chunk)=>{data+=chunk;});
+                    res.on('end', ()=>{
+                        resolve(data);
+                    });
+                });
+                
+                req.on('error', ()=>{reject();});
+                req.end();
+            }, ()=>{reject();});
+        });
+    }
+    
+    getCookies(){
+        return new Promise((resolve,reject) => {
+            if(this.tempCookie != null){
+                resolve(this.tempCookie);
+            }else{
+                const options = {
+                    port: this.port,
+                    hostname: this.host,
+                    path: '/iserv/login_check',
+                    method: 'POST',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/5331 (KHTML, like Gecko) Chrome/38.0.858.0 Mobile Safari/5331',
+                        'Accept': '/',
+                        'Connection': 'keep-alive',
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    }
+                };
+                
+                var req = https.request(options, (res)=>{
+                    if("set-cookie" in res.headers){
+                        var c = "";
+                        for(var cookie of res.headers["set-cookie"]) c += cookie.split(";")[0] + "; ";
+                        
+                        if(c.length>0){
+                            c = c.substring(0, c.length-2);
+                            this.tempCookie = c;
+                            this.cookieUpdate(c);
+                            resolve(c);
+                            return;
+                        }
+                    }
+                    
+                    console.log(tag + "Login check failed. The credentials are probably wrong.");
+                    reject();
+                });
+                
+                req.end(querystring.stringify({ "_username": this.user, "_password": this.pass}));
+            }
+        });
+    }
+    
+    _download(path,savepath){
+        return new Promise((resolve,reject)=>{
+            this.getCookies().then((cookies)=>{
+                var filestream = fs.createWriteStream(savepath);
+                
+                const options = {
+                    port: this.port,
+                    hostname: this.host,
+                    path: path,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/5331 (KHTML, like Gecko) Chrome/38.0.858.0 Mobile Safari/5331',
+                        'Cookie': cookies,
+                        'Accept': '/',
+                        'Connection': 'keep-alive'
+                    }
+                };
+                
+                var req = https.request(options, (res)=>{
+                    var mb = res.headers["content-length"] / 1048576;
+                    if(mb > 7.8) reject();
+                    
+                    res.on('data', (chunk)=>{filestream.write(chunk);});
+                    res.on('end', ()=>{
+                        filestream.end();
+                        resolve(savepath);
+                    });
+                });
+                
+                req.on('error', ()=>{reject();});
+                
+                req.end();
+            }, ()=>{reject();});
+        });
+    }
+    
+    _tmpfile(name){
+        if(!fs.existsSync("_iservTmp")) fs.mkdirSync("_iservTmp");
+        return "_iservTmp/"+name;
+    }
+}
+
+module.exports = IServClass;
