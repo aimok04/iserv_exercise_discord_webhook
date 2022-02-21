@@ -30,9 +30,11 @@ class IServClass {
                     resolve(detailed_exercise_object);
                     return;
                 }
+
+                var safe_name = file.name.replace(/[^A-Za-z0-9._-]/g, '');
                 
-               cl._download(file.url, cl._tmpfile(Date.now()+"_tmp"+file.name)).then(nextFile, nextFile);
-               index++;
+                cl._download(file.url, cl._tmpfile(Date.now()+"_tmp"+safe_name)).then(nextFile, nextFile);
+                index++;
             };
             
             nextFile();
@@ -44,19 +46,22 @@ class IServClass {
             this.simpleEndpointRequest("/iserv/exercise/show/"+id).then((data)=>{
                 var $ = cheerio.load(data);
                 var obj = {};
+
+                var tbody = $("table:first").find("tbody").find("tr");
                 
-                obj.creator = $("table:first").find("tr:nth-child(1)").find("td").text();
-                obj.start = $("table:first").find("tr:nth-child(2)").find("td").text();
-                obj.end = $("table:first").find("tr:nth-child(3)").find("td").text();
+                obj.creator = tbody.find("td:nth-child(1)").text();
+                obj.start = tbody.find("td:nth-child(2)").text();
+                obj.end = tbody.find("td:nth-child(3) li:nth-child(1)").text();
                 
                 obj.description = $(".panel:first").find("div:nth-of-type(2)").find(".text-break-word:nth-of-type(2)").text();
                 obj.files = [];
                 
-                var index = 0;
-                $("form[name=iserv_exercise_attachment]").find("td:nth-child(even)").find("a").each(function(){
+                $("form[name=iserv_exercise_attachment] tbody").find("tr").each(function(){
+                    var object = $(this).find("td:nth-child(2) a");
+                    
                     obj.files.push({
-                       name: $(this).text(),
-                       url: $(this).attr("href")
+                       name: object.text(),
+                       url: object.attr("href")
                     });
                 });
                 
@@ -76,20 +81,24 @@ class IServClass {
                     var obj = {};
                     
                     $(this).find("td").each(function(){
-                        if(index==0){
-                            obj.id = $(this).find("a").attr("href").split("/").pop();
-                            obj.url = $(this).find("a").attr("href");
-                            obj.name = $(this).text();
-                        }else if(index == 1){
-                            obj.start = $(this).text();
-                        }else if(index == 2){
-                            obj.end = $(this).text();
-                        }else if(index == 3){
-                            obj.tags = $(this).text();
+                        try {
+                            if(index==0){
+                                obj.id = $(this).find("a").attr("href").split("/").pop();
+                                obj.url = $(this).find("a").attr("href");
+                                obj.name = $(this).text();
+                            }else if(index == 1){
+                                obj.start = $(this).text();
+                            }else if(index == 2){
+                                obj.end = $(this).text();
+                            }else if(index == 3){
+                                obj.tags = $(this).text();
+                            }
+                            index++;
+                        }catch(e){
                         }
-                        index++;
                     });
                     
+                    if(obj.id == null) return;
                     returnment.push(obj);
                 });
                 
