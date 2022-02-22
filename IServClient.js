@@ -53,7 +53,7 @@ class IServClass {
                 obj.start = tbody.find("td:nth-child(2)").text();
                 obj.end = tbody.find("td:nth-child(3) li:nth-child(1)").text();
                 
-                obj.description = $(".panel:first").find("div:nth-of-type(2)").find(".text-break-word:nth-of-type(2)").text();
+                obj.description = $(".panel:first").find("div:first").find(".col-md-6:first").find("div:first").find("div:first").find(".text-break-word").text();
                 obj.files = [];
                 
                 $("form[name=iserv_exercise_attachment] tbody").find("tr").each(function(){
