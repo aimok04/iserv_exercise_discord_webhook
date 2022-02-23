@@ -1,6 +1,10 @@
 const iserv = require("./IServClient");
+
 const discord = require("discord.js");
-const fs = require("fs");
+const https = require("https");
+const clone = require("git-clone/promise");
+const fs = require('fs-extra')
+
 const args = process.argv.slice(2);
 
 const default_customization = {
@@ -12,6 +16,37 @@ const default_customization = {
     "lang_embed_field_beginning_name": "Beginning",
     "lang_embed_field_ending_name": "Ending"
 };
+
+if(args.includes("--update")){
+    (async function() {
+        var i = 0;
+        var status = "Downloading repo";
+        
+        setInterval(()=>{
+            var symbols = [ ".  ", ".. ", "..." ];
+            process.stdout.write("\r" + status + " " + symbols[i] + "             ");
+            i++;
+            
+            if(symbols[i] == null) i = 0;
+        }, 250);
+        
+        await clone("https://github.com/aimok04/iserv_exercise_discord_webhook", "_updateTmp");
+        status = "Replacing files";
+        
+        fs.copy("_updateTmp", ".", function (err) {
+            if (err){
+                console.log('\nAn error occured while copying the folder.')
+                return console.error(err)
+            }
+
+            fs.removeSync("_updateTmp");
+            
+            console.log('\n\x1b[32mUpdate complete.\x1b[0m');
+            process.exit();
+        });
+    })();
+    return;
+}
 
 if(!fs.existsSync("data")) fs.mkdirSync("data");
 
@@ -66,124 +101,192 @@ if(!fs.existsSync("data/data.json")) {
 const conf = JSON.parse(fs.readFileSync("data/settings.json"));
 const dataT = JSON.parse(fs.readFileSync("data/data.json"));
 
+var webhookClient = null;
+
 console.log("// To enter the setup add the argument --setup");
-console.log("Checking for new exercises...");
+console.log("Checking for updates ...");
 
-var iserv_client = new iserv(conf.host, conf.port, conf.user, conf.pass, dataT.cookie, function(c){
-    dataT.cookie = c;
-    fs.writeFileSync("data/data.json", JSON.stringify(dataT));
-});
-
-iserv_client.getExercises().then((data)=> {
-    var new_exercises = [];
-    for(var obj of data) if(!dataT.ids.includes(obj.id)) new_exercises.push(obj);
-    
-    if(firstTimeRunning){
-        var idList = [];
-        for(var obj of data) idList.push(obj.id);
-        dataT.ids = idList;
-        fs.writeFileSync("data/data.json", JSON.stringify(dataT));
-        
-        console.log("No new exercises were found. Exit.");
-        process.exit();
+const req = https.request({
+    hostname: 'raw.githubusercontent.com',
+    port: 443,
+    path: '/aimok04/iserv_exercise_discord_webhook/main/README.md',
+    method: 'GET',
+    timeout: 2000
+}, res => {
+    if(res.statusCode !== 200){
+        main();
         return;
     }
     
-    if(new_exercises.length>0){
-        var discordparams = conf.discord_webhook_url.split("/");
-        const webhookClient = new discord.WebhookClient(discordparams[5], discordparams[6]);
+    var body = "";
+    
+    res.on('data', d => { body+=d });
+    res.on('end', ()=>{
+        var bodyLines = body.split("\n");
         
-        var index = 0;
-        var f = function(){
-            var exercise = new_exercises[index];
-            if(exercise == null){
-                console.log("Finished. Exit.");
-                process.exit();
+        var versionName = bodyLines[bodyLines.length-1];
+        if(versionName === "") versionName = bodyLines[bodyLines.length-2];
+        versionName = versionName.split("VERSION: ")[1].split(" ")[0];
+        
+        if(dataT.versionNotification !== versionName){
+            var sendUpdateMessage = dataT.versionNotification != null;
+            
+            dataT.versionNotification = versionName;
+            fs.writeFileSync("data/data.json", JSON.stringify(dataT));
+            
+            if(!sendUpdateMessage) {
+                main();
                 return;
             }
+                
+            createWebhookClient();
+            console.log("\n\x1b[41mThere are some new commits that have been added to the project. If you want to update, either clone the project again and replace the files manually or execute following command in your project folder.\x1b[0m\n\x1b[31mnode . --update\x1b[0m\n");
             
-            index++;
-            iserv_client.getExerciseDetailed(exercise.id).then(function(detailed_exercise){
-                exercise.detailed = detailed_exercise;
-                iserv_client.downloadExerciseFiles(exercise.detailed).then(function(){
-                    var embeds = [];
-                    var index = 0;
-                    var pieces = textIntoPieces(exercise.detailed.description + "\n \n_ _", 2000);
-                    for(var part of pieces){
-                        var embed = new discord.MessageEmbed();
-                        embed.setDescription(part);
-                        embed.setColor(conf.customization.embed_color);
-                        
-                        if(index == 0){
-                            embed.setTitle(conf.customization.lang_embed_title.replace("%name%",exercise.name));
-                            embed.setURL(exercise.url);
-                        }
-                        
-                        if(index+1 == pieces.length) embed.addFields([{name: conf.customization.lang_embed_field_author_name, value: detailed_exercise.creator},{name: conf.customization.lang_embed_field_beginning_name, value: detailed_exercise.start}, {name: conf.customization.lang_embed_field_ending_name, value: detailed_exercise.end}]);
-                        
-                        embeds.push(embed);
-                        index++;
-                    }
-                    
-                    var index2 = 0;
-                    var f2 = function(){
-                        var embed = embeds[index2];
-                        if(embed == null){
-                            var index3 = 0;
-                            var f3 = function(){
-                                var file = exercise.detailed.files[index3];
-                                if(file == null){
-                                    f();
-                                    return;
-                                }
-                                
-                                index3++;
-                                
-                                if(file.local_path == null){
-                                    webhookClient.send("["+file.name+"](https://"+conf.host+":"+conf.port+file.url+")", {
-                                        avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
-                                        username: conf.customization.bot_name
-                                    }).then(f3, f3);
-                                }else{
-                                    webhookClient.send({
-                                        avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
-                                        username: conf.customization.bot_name,
-                                        files: [{
-                                            attachment: file.local_path,
-                                            name: file.name
-                                        }]
-                                    }).then(f3, f3);
-                                }
-                            }
-                            
-                            f3();
-                            return;
-                        }
-                        
-                        index2++;
-                        webhookClient.send('', {
-                            avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
-                            username: conf.customization.bot_name,
-                            embeds: [embed]
-                        }).then(f2, f2);
-                    }
-                    f2();
-                }, f);
-            }, f);
+            var embed = new discord.MessageEmbed();
+            embed.setTitle("New commits");
+            embed.setURL("https://github.com/aimok04/iserv_exercise_discord_webhook");
+            embed.setDescription("If you want to update, either clone the project again and replace the files manually or execute following command in your project folder.\n```node . --update```");
+            embed.setColor("#ff0000");
+            
+            webhookClient.send('', {
+                avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
+                username: conf.customization.bot_name,
+                embeds: [embed]
+            }).then(main, main);
+        }else{
+            console.log("Up to date.\n");
+            main();
+        }
+    });
+})
+
+req.on('error', main);
+req.end();
+
+async function main(){
+    console.log("Checking for new exercises...");
+
+    var iserv_client = new iserv(conf.host, conf.port, conf.user, conf.pass, dataT.cookie, function(c){
+        dataT.cookie = c;
+        fs.writeFileSync("data/data.json", JSON.stringify(dataT));
+    });
+
+    iserv_client.getExercises().then((data)=> {
+        var new_exercises = [];
+        for(var obj of data) if(!dataT.ids.includes(obj.id)) new_exercises.push(obj);
+        
+        if(firstTimeRunning){
+            var idList = [];
+            for(var obj of data) idList.push(obj.id);
+            dataT.ids = idList;
+            fs.writeFileSync("data/data.json", JSON.stringify(dataT));
+            
+            console.log("No new exercises were found. Exit.");
+            process.exit();
+            return;
         }
         
-        console.log(new_exercises.length + " new exercise(s) was/were found.");
-        f();
-        
-        var idList = [];
-        for(var obj of data) idList.push(obj.id);
-        dataT.ids = idList;
-        fs.writeFileSync("data/data.json", JSON.stringify(dataT));
-    }else{
-        console.log("No new exercises were found. Exit.");
-        process.exit();
-    }
-});
+        if(new_exercises.length>0){
+            createWebhookClient();
+            
+            var index = 0;
+            var f = function(){
+                var exercise = new_exercises[index];
+                if(exercise == null){
+                    console.log("Finished. Exit.");
+                    process.exit();
+                    return;
+                }
+                
+                index++;
+                iserv_client.getExerciseDetailed(exercise.id).then(function(detailed_exercise){
+                    exercise.detailed = detailed_exercise;
+                    iserv_client.downloadExerciseFiles(exercise.detailed).then(function(){
+                        var embeds = [];
+                        var index = 0;
+                        var pieces = textIntoPieces(exercise.detailed.description + "\n \n_ _", 2000);
+                        for(var part of pieces){
+                            var embed = new discord.MessageEmbed();
+                            embed.setDescription(part);
+                            embed.setColor(conf.customization.embed_color);
+                            
+                            if(index == 0){
+                                embed.setTitle(conf.customization.lang_embed_title.replace("%name%",exercise.name));
+                                embed.setURL(exercise.url);
+                            }
+                            
+                            if(index+1 == pieces.length) embed.addFields([{name: conf.customization.lang_embed_field_author_name, value: detailed_exercise.creator},{name: conf.customization.lang_embed_field_beginning_name, value: detailed_exercise.start}, {name: conf.customization.lang_embed_field_ending_name, value: detailed_exercise.end}]);
+                            
+                            embeds.push(embed);
+                            index++;
+                        }
+                        
+                        var index2 = 0;
+                        var f2 = function(){
+                            var embed = embeds[index2];
+                            if(embed == null){
+                                var index3 = 0;
+                                var f3 = function(){
+                                    var file = exercise.detailed.files[index3];
+                                    if(file == null){
+                                        f();
+                                        return;
+                                    }
+                                    
+                                    index3++;
+                                    
+                                    if(file.local_path == null){
+                                        webhookClient.send("["+file.name+"](https://"+conf.host+":"+conf.port+file.url+")", {
+                                            avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
+                                            username: conf.customization.bot_name
+                                        }).then(f3, f3);
+                                    }else{
+                                        webhookClient.send({
+                                            avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
+                                            username: conf.customization.bot_name,
+                                            files: [{
+                                                attachment: file.local_path,
+                                                name: file.name
+                                            }]
+                                        }).then(f3, f3);
+                                    }
+                                }
+                                
+                                f3();
+                                return;
+                            }
+                            
+                            index2++;
+                            webhookClient.send('', {
+                                avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
+                                username: conf.customization.bot_name,
+                                embeds: [embed]
+                            }).then(f2, f2);
+                        }
+                        f2();
+                    }, f);
+                }, f);
+            }
+            
+            console.log(new_exercises.length + " new exercise(s) was/were found.");
+            f();
+            
+            var idList = [];
+            for(var obj of data) idList.push(obj.id);
+            dataT.ids = idList;
+            fs.writeFileSync("data/data.json", JSON.stringify(dataT));
+        }else{
+            console.log("No new exercises were found. Exit.");
+            process.exit();
+        }
+    });
+}
+
+function createWebhookClient(){
+    if(webhookClient != null) return;
+    var discordparams = conf.discord_webhook_url.split("/");
+    webhookClient = new discord.WebhookClient(discordparams[5], discordparams[6]);
+}
 
 function textIntoPieces(text, splitAt){
     var ts = text.split(" ");
