@@ -124,35 +124,43 @@ const req = https.request({
     res.on('end', ()=>{
         var bodyLines = body.split("\n");
         
-        var versionName = bodyLines[bodyLines.length-1];
-        if(versionName === "") versionName = bodyLines[bodyLines.length-2];
-        versionName = versionName.split("VERSION: ")[1].split(" ")[0];
+        var latestVersionName = bodyLines[bodyLines.length-1];
+        if(latestVersionName === "") latestVersionName = bodyLines[bodyLines.length-2];
+        latestVersionName = latestVersionName.split("VERSION: ")[1].split(" ")[0];
+
+        var versionName = null;
+        try {
+            var readmeLines = (fs.readFileSync("README.md")+"").split("\n");
         
-        if(dataT.versionNotification !== versionName){
-            var sendUpdateMessage = dataT.versionNotification != null;
-            
-            dataT.versionNotification = versionName;
-            fs.writeFileSync("data/data.json", JSON.stringify(dataT));
-            
-            if(!sendUpdateMessage) {
-                main();
-                return;
-            }
-                
-            createWebhookClient();
+            var versionName = readmeLines[readmeLines.length-1];
+            if(versionName === "") versionName = readmeLines[readmeLines.length-2];
+            versionName = versionName.split("VERSION: ")[1].split(" ")[0];
+        }catch(e){
+        }
+        
+        if(latestVersionName !== versionName){
             console.log("\n\x1b[41mThere are some new commits that have been added to the project. If you want to update, either clone the project again and replace the files manually or execute following command in your project folder.\x1b[0m\n\x1b[31mnode . --update\x1b[0m\n");
             
-            var embed = new discord.MessageEmbed();
-            embed.setTitle("New commits");
-            embed.setURL("https://github.com/aimok04/iserv_exercise_discord_webhook");
-            embed.setDescription("If you want to update, either clone the project again and replace the files manually or execute following command in your project folder.\n```node . --update```");
-            embed.setColor("#ff0000");
-            
-            webhookClient.send('', {
-                avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
-                username: conf.customization.bot_name,
-                embeds: [embed]
-            }).then(main, main);
+            if(dataT.versionNotification !== latestVersionName){
+                dataT.versionNotification = latestVersionName;
+                fs.writeFileSync("data/data.json", JSON.stringify(dataT));
+
+                createWebhookClient();
+
+                var embed = new discord.MessageEmbed();
+                embed.setTitle("New commits");
+                embed.setURL("https://github.com/aimok04/iserv_exercise_discord_webhook");
+                embed.setDescription("If you want to update, either clone the project again and replace the files manually or execute following command in your project folder.\n```node . --update```");
+                embed.setColor("#ff0000");
+                
+                webhookClient.send('', {
+                    avatarURL: conf.customization.bot_avatar.replace("%host%", conf.host).replace("%port%", conf.port),
+                    username: conf.customization.bot_name,
+                    embeds: [embed]
+                }).then(main, main);
+            }else{
+                main();
+            }
         }else{
             console.log("Up to date.\n");
             main();
