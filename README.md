@@ -15,7 +15,7 @@ This NodeJS script automatically sends new iserv exercises to a discord webhook.
 This will execute the script every 5 minutes from 6 am to 5 pm from Monday until Friday.
 
 # Updating
-You can update the project files with this command: `node . --update`
+You can update the project files with this command: `git pull`
 
 # Used NPM packages
 I used two NPM packages in this script.
