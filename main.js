@@ -2,7 +2,7 @@ const iserv = require("./IServClient");
 
 const discord = require("discord.js");
 const https = require("https");
-const fs = require('fs-extra')
+const fs = require("fs");
 
 const args = process.argv.slice(2);
 
