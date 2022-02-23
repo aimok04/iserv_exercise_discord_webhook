@@ -78,7 +78,7 @@ console.log("Checking for updates ...");
 const req = https.request({
     hostname: 'raw.githubusercontent.com',
     port: 443,
-    path: '/aimok04/iserv_exercise_discord_webhook/main/README.md',
+    path: '/aimok04/iserv_exercise_discord_webhook/main/package.json',
     method: 'GET',
     timeout: 2000
 }, res => {
