@@ -91,19 +91,11 @@ const req = https.request({
     
     res.on('data', d => { body+=d });
     res.on('end', ()=>{
-        var bodyLines = body.split("\n");
-        
-        var latestVersionName = bodyLines[bodyLines.length-1];
-        if(latestVersionName === "") latestVersionName = bodyLines[bodyLines.length-2];
-        latestVersionName = latestVersionName.split("VERSION: ")[1].split(" ")[0];
+        var latestVersionName = JSON.parse(body).version;
 
         var versionName = null;
         try {
-            var readmeLines = (fs.readFileSync("README.md")+"").split("\n");
-        
-            var versionName = readmeLines[readmeLines.length-1];
-            if(versionName === "") versionName = readmeLines[readmeLines.length-2];
-            versionName = versionName.split("VERSION: ")[1].split(" ")[0];
+            versionName = JSON.parse(fs.readFileSync("package.json")).version;
         }catch(e){
         }
         
