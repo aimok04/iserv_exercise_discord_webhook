@@ -18,7 +18,7 @@ This will execute the script every 5 minutes from 6 am to 5 pm from Monday until
 You can update the project files with this command: `git pull`
 
 # Used NPM packages
-I used two NPM packages in this script.
+I used four NPM packages in this script.
 * [Discord.JS](https://github.com/discordjs/discord.js)
 * [Cheerio](https://github.com/cheeriojs/cheerio)
 * [fs-extra](https://github.com/jprichardson/node-fs-extra)
