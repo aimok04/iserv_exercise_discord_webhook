@@ -164,7 +164,7 @@ req.on('error', main);
 req.end();
 
 async function main(){
-    console.log("Checking for new exercises...");
+    console.log("Checking for new exercises ...");
 
     var iserv_client = new iserv(conf.host, conf.port, conf.user, conf.pass, dataT.cookie, function(c){
         dataT.cookie = c;
