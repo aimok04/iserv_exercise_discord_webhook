@@ -1,6 +1,6 @@
 {
   "name": "iserv_exercise_discord_webhook",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "This NodeJS script automatically sends new iserv exercises to a discord webhook.",
   "main": "main.js",
   "scripts": {
