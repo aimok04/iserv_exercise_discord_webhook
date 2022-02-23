@@ -1,0 +1,23 @@
+{
+  "name": "iserv_exercise_discord_webhook",
+  "version": "1.0.0",
+  "description": "This NodeJS script automatically sends new iserv exercises to a discord webhook.",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aimok04/iserv_exercise_discord_webhook.git"
+  },
+  "author": "aimok04",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/aimok04/iserv_exercise_discord_webhook/issues"
+  },
+  "homepage": "https://github.com/aimok04/iserv_exercise_discord_webhook#readme",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.10",
+    "discord.js": "^12.5.3"
+  }
+}
