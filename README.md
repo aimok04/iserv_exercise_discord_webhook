@@ -26,4 +26,4 @@ I used two NPM packages in this script.
 
 # Disclaimer
 I don't know if this will work for every server. If you have any suggestions or questions please let me know! :)
-<!-- VERSION: 4 -->
+<!-- VERSION: 5 -->
