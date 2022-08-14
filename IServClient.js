@@ -3,6 +3,8 @@ const https = require("https");
 const fs = require("fs");
 const cheerio = require('cheerio'); 
 
+const { getLoginCookies } = require('./IServAuthorization');
+
 const tag = "[ ISERV-CLIENT ] ";
 
 class IServClass {
@@ -144,42 +146,14 @@ class IServClass {
     }
     
     getCookies(){
-        return new Promise((resolve,reject) => {
+        return new Promise(async(resolve,reject) => {
             if(this.tempCookie != null){
                 resolve(this.tempCookie);
             }else{
-                const options = {
-                    port: this.port,
-                    hostname: this.host,
-                    path: '/iserv/login_check',
-                    method: 'POST',
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/5331 (KHTML, like Gecko) Chrome/38.0.858.0 Mobile Safari/5331',
-                        'Accept': '/',
-                        'Connection': 'keep-alive',
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    }
-                };
-                
-                var req = https.request(options, (res)=>{
-                    if("set-cookie" in res.headers){
-                        var c = "";
-                        for(var cookie of res.headers["set-cookie"]) c += cookie.split(";")[0] + "; ";
-                        
-                        if(c.length>0){
-                            c = c.substring(0, c.length-2);
-                            this.tempCookie = c;
-                            this.cookieUpdate(c);
-                            resolve(c);
-                            return;
-                        }
-                    }
-                    
-                    console.log(tag + "Login check failed. The credentials are probably wrong.");
-                    reject();
-                });
-                
-                req.end(querystring.stringify({ "_username": this.user, "_password": this.pass}));
+                let cookie = await getLoginCookies(this.host, this.user, this.pass);
+                this.tempCookie = cookie;
+                this.cookieUpdate(cookie);
+                resolve(cookie);
             }
         });
     }
